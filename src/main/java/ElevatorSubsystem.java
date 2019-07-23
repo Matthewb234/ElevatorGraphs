@@ -55,4 +55,39 @@ public class ElevatorSubsystem extends Subsystem {
     public void setElevatorActive(boolean elevatorActive){
         this.elevatorActive = elevatorActive;
     }
+
+
+    private class BikeBrake {
+
+        /** Renamed from bikeBreak */
+        private BikeBrakeState bikeBrakeState;
+        private long bikeDisengageTimeStamp;
+        private long bikeEngageTimeStamp;
+
+        public void periodic() {
+            updateState();
+        }
+
+        /** Renamed from brakeElevator */
+        public void engageBikeBrake() {
+            if(isBikeBrakeDisengaged()) {
+                bikeDisengageTimeStamp = -1;
+                bikeEngageTimeStamp = System.currentTimeMillis();
+                logger.debug("Engaging bike brake. Position: [{}]", io.info.currentPosition());
+                bikeBrakeSolenoid.set(false);
+                bikeBrakeState = BikeBrakeState.ENGAGING;
+            }
+        }
+
+        /** Renamed from releaseBrake */
+        public void disengageBikeBrake() {
+            if(isBikeBrakeEngaged()) {
+                bikeEngageTimeStamp = -1;
+                bikeDisengageTimeStamp = System.currentTimeMillis();
+                logger.debug("Disengaging bike brake. Position: [{}]", io.info.currentPosition());
+            }
+            bikeBrakeSolenoid.set(true);
+            bikeBrakeState = BikeBrakeState.DISENGAGING;
+        }
 }
+
