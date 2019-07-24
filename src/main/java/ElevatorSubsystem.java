@@ -17,10 +17,14 @@ public class ElevatorSubsystem extends Subsystem {
     private Solenoid bikeBrakeSolenoid;
     private Joystick controller;
     private boolean elevatorActive;
+    private BikeBrake bikeBrake;
+
 
     public static final int ENCODER_EDGES_PER_INCH_OF_TRAVEL = 1350;
 
     private static final int BIKE_BRAKE_RELEASE_DELAY = 60;
+
+    private static final int MOTOR_KILL_HEIGHT = 23;
 
     private PositionConverter converter = new PositionConverterImpl();
 
@@ -30,13 +34,21 @@ public class ElevatorSubsystem extends Subsystem {
         this.controller = controller;
     }
 
-    public void setOutput() {
-        elevatorMaster.set(ControlMode.PercentOutput, .1);
+    public void setOutput(double output) {
+        elevatorMaster.set(ControlMode.PercentOutput, output);
     }
 
     public void setSlave() {
 
         elevatorSlave.follow(elevatorMaster);
+    }
+
+    private void killMotor(){
+        if(currentPosition() < MOTOR_KILL_HEIGHT){
+            setOutput(0.1);
+        }else if(currentPosition() >= MOTOR_KILL_HEIGHT){
+            setOutput(0d);
+        }
     }
 
     public void init() {
@@ -54,13 +66,18 @@ public class ElevatorSubsystem extends Subsystem {
 
     @Override
     public void periodic() {
-        setOutput();
+        updateCurrentPosition();
+        bikeBrake.periodic();
+        setOutput(0.1);
+        killMotor();
     }
 
     @Override
     protected void initDefaultCommand() {
 
     }
+
+
 
     public void setElevatorActive(boolean elevatorActive) {
         this.elevatorActive = elevatorActive;
