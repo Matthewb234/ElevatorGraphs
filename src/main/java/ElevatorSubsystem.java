@@ -51,6 +51,11 @@ public class ElevatorSubsystem extends Subsystem {
         }
     }
 
+    private void applyBrake(){
+        if(currentPosition() >= 25 || elevatorMaster.getSelectedSensorVelocity() <= 0){
+            bikeBrake.engageBikeBrake();
+        }
+    }
     public void init() {
         configEncoder();
         setSlave();
@@ -68,8 +73,10 @@ public class ElevatorSubsystem extends Subsystem {
     public void periodic() {
         updateCurrentPosition();
         bikeBrake.periodic();
-        setOutput(0.1);
-        killMotor();
+        if(elevatorActive) {
+            killMotor();
+            applyBrake();
+        }
     }
 
     @Override

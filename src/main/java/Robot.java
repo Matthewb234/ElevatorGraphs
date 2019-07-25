@@ -4,6 +4,7 @@ import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.RobotState;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.buttons.JoystickButton;
+import edu.wpi.first.wpilibj.command.Scheduler;
 
 
 public class Robot extends TimedRobot {
@@ -27,15 +28,19 @@ public class Robot extends TimedRobot {
 
     @Override
     public void robotInit() {
+        elevatorSubsystem.init();
         x.toggleWhenPressed(elevatorCommand);
     }
 
 
+    @Override
+    public void disabledInit() {
 
+    }
 
     @Override
     public void robotPeriodic() {
-
+        Scheduler.getInstance().run();
 
     }
 
@@ -56,7 +61,6 @@ public class Robot extends TimedRobot {
 
     @Override
     public void teleopPeriodic() {
-
 
     }
 
