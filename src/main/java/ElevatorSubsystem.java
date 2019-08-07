@@ -1,30 +1,30 @@
 
 import com.ctre.phoenix.motorcontrol.ControlMode;
 import com.ctre.phoenix.motorcontrol.FeedbackDevice;
+import com.ctre.phoenix.motorcontrol.can.TalonSRX;
+import com.ctre.phoenix.motorcontrol.can.VictorSPX;
 import com.team2073.common.position.converter.PositionConverter;
-import com.team2073.common.speedcontroller.EagleSPX;
-import com.team2073.common.speedcontroller.EagleSRX;
-import edu.wpi.first.wpilibj.DigitalInput;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.Solenoid;
 import edu.wpi.first.wpilibj.command.Subsystem;
 
 
 public class ElevatorSubsystem extends Subsystem {
-
-    private EagleSRX elevatorMaster;
-    private EagleSPX elevatorSlave;
-    private Solenoid bikeBrakeSolenoid;
-    private Joystick controller;
+    public TalonSRX elevatorMaster = new TalonSRX(5);
+    public VictorSPX elevatorSlave = new VictorSPX(5);
+    private Solenoid bikeBrakeSolenoid = new Solenoid(2);
     private boolean elevatorActive;
-    private BikeBrake bikeBrake;
-
-
-    public static final int ENCODER_EDGES_PER_INCH_OF_TRAVEL = 1350;
-
+    private boolean bikeBrakeEngaged;
+    private boolean bikeBrakeDisengaged;
+    private Joystick controller;
+    public boolean heightReached;
+    private boolean brakeApplied;
+    public double velocity;
+    public BikeBrake bikeBrake = new BikeBrake();
+    private static final double elevatorPercent = 1;
+    private static final double MAX_BREAK_HEIGHT = 20;
+    private static final int ENCODER_EDGES_PER_INCH_OF_TRAVEL = 1350;
     private static final int BIKE_BRAKE_RELEASE_DELAY = 60;
-
-    private static final int MOTOR_KILL_HEIGHT = 23;
 
     private PositionConverter converter = new PositionConverterImpl();
 
@@ -39,43 +39,70 @@ public class ElevatorSubsystem extends Subsystem {
     }
 
     public void setSlave() {
-
         elevatorSlave.follow(elevatorMaster);
     }
 
-    private void killMotor(){
-        if(currentPosition() < MOTOR_KILL_HEIGHT){
-            setOutput(0.1);
-        }else if(currentPosition() >= MOTOR_KILL_HEIGHT){
-            setOutput(0d);
+    private void setMotor(){
+        System.out.println(currentPosition);
+        if(currentPosition() < MAX_BREAK_HEIGHT && bikeBrake.isBikeBrakeDisengaged() && heightReached == false){
+            setOutput(elevatorPercent);
+        }
+        if(currentPosition() > MAX_BREAK_HEIGHT){
+             setOutput(0d);
+             heightReached = true;
         }
     }
 
+    public double getVelocity(){
+        return velocity;
+    }
+
+    private void updateVelocity(){
+        velocity = elevatorMaster.getSelectedSensorVelocity()/1190.15*10;
+    }
+
+//|| elevatorMaster.getSelectedSensorVelocity() < -.1
     private void applyBrake(){
-        if(currentPosition() >= 25 || elevatorMaster.getSelectedSensorVelocity() <= 0){
+        if(currentPosition() >= MAX_BREAK_HEIGHT && brakeApplied == false ){
             bikeBrake.engageBikeBrake();
+            brakeApplied = true;
         }
     }
+
     public void init() {
-        configEncoder();
         setSlave();
+        bikeBrake.disengageBikeBrake();
+        configEncoder();
     }
 
     public void configEncoder() {
         elevatorMaster.configSelectedFeedbackSensor(FeedbackDevice.QuadEncoder, 0, 10);
         elevatorMaster.configAllowableClosedloopError(0, 0, 10);
-//        elevatorMaster.setInverted(Elevator.MASTER_DEFAULT_DIRECTION);
-//        elevatorSlave.setInverted(Elevator.SLAVE_DEFAULT_DIRECTION);
+        elevatorMaster.setInverted(false);
+        elevatorSlave.setInverted(true);
 
+    }
+    public static double getElevatorPercent(){
+        return elevatorPercent;
     }
 
     @Override
     public void periodic() {
+
         updateCurrentPosition();
+        updateVelocity();
         bikeBrake.periodic();
         if(elevatorActive) {
-            killMotor();
+            setMotor();
             applyBrake();
+            System.out.println("Output is " + elevatorMaster.getMotorOutputPercent());
+
+        }
+        if(bikeBrakeEngaged){
+            bikeBrake.engageBikeBrake();
+        }
+        if(bikeBrakeDisengaged){
+            bikeBrake.disengageBikeBrake();
         }
     }
 
@@ -90,21 +117,30 @@ public class ElevatorSubsystem extends Subsystem {
         this.elevatorActive = elevatorActive;
     }
 
-    private double currentPosition() {
+    public void setBikeBrakeEngaged(boolean bikeBrakeEngaged){
+        this.bikeBrakeEngaged = bikeBrakeEngaged;
+    }
+
+    public void setBikeBrakeDisengaged(boolean bikeBrakeDisengaged){
+        this.bikeBrakeDisengaged = bikeBrakeDisengaged;
+    }
+
+
+    public double currentPosition() {
         return currentPosition;
     }
 
     private void updateCurrentPosition() {
-        currentPosition = converter.asPosition(elevatorMaster.getSelectedSensorPosition(0));
+        currentPosition = elevatorMaster.getSelectedSensorPosition()/1190.15;
     }
 
 
     public enum BikeBrakeState {
-        ENGAGED, DISENGAGING, ENGAGING, DISENGAGED;
+        ENGAGED, DISENGAGING, ENGAGING, DISENGAGED
     }
 
 
-    private class BikeBrake {
+    public class BikeBrake {
 
         /**
          * Renamed from bikeBreak
@@ -114,33 +150,24 @@ public class ElevatorSubsystem extends Subsystem {
         private long bikeEngageTimeStamp;
 
         public void periodic() {
-            updateState();
+//            updateState();
         }
 
         /**
          * Renamed from brakeElevator
          */
         public void engageBikeBrake() {
-            if (isBikeBrakeDisengaged()) {
-                bikeDisengageTimeStamp = -1;
-                bikeEngageTimeStamp = System.currentTimeMillis();
-                System.out.println("Engaging bike brake. Position: [{}]" + currentPosition);
-                bikeBrakeSolenoid.set(false);
-                bikeBrakeState = BikeBrakeState.ENGAGING;
-            }
+            bikeBrakeSolenoid.set(false);
+            bikeBrakeState = BikeBrakeState.ENGAGED;
         }
 
         /**
          * Renamed from releaseBrake
          */
         public void disengageBikeBrake() {
-            if (isBikeBrakeEngaged()) {
-                bikeEngageTimeStamp = -1;
-                bikeDisengageTimeStamp = System.currentTimeMillis();
-                System.out.println("Disengaging bike brake. Position: [{}]" + currentPosition);
-            }
+            System.out.println("disengaged");
             bikeBrakeSolenoid.set(true);
-            bikeBrakeState = BikeBrakeState.DISENGAGING;
+            bikeBrakeState = BikeBrakeState.DISENGAGED;
         }
 
 
@@ -148,13 +175,13 @@ public class ElevatorSubsystem extends Subsystem {
             if (isBikeBrakeDisengaging()) {
                 long timeSinceBrakeDisengaged = timeSinceBrakeDisengaged();
                 if (timeSinceBrakeDisengaged > ElevatorSubsystem.BIKE_BRAKE_RELEASE_DELAY) {
-                    System.out.println("Bike delay reached. Safe to assume bike brake disengaged. Total wait time: [{}]" + timeSinceBrakeDisengaged);
+//                    System.out.println("Bike delay reached. Safe to assume bike brake disengaged. Total wait time: [" + timeSinceBrakeDisengaged + "]");
                     bikeBrakeState = BikeBrakeState.DISENGAGED;
                 }
             } else if (isBikeBrakeEngaging()) {
                 long timeSinceBrakeEngaged = timeSinceBrakeEngaged();
                 if (timeSinceBrakeEngaged > ElevatorSubsystem.BIKE_BRAKE_RELEASE_DELAY) {
-                    System.out.println("Bike delay reached. Safe to assume bike brake engaged. Total wait time: [{}]" + timeSinceBrakeEngaged);
+//                    System.out.println("Bike delay reached. Safe to assume bike brake engaged. Total wait time: [" + timeSinceBrakeEngaged+"]");
                     bikeBrakeState = BikeBrakeState.ENGAGED;
                 }
             }
