@@ -20,8 +20,9 @@ public class ElevatorSubsystem extends Subsystem {
     public boolean heightReached;
     private boolean brakeApplied;
     public double velocity;
+    public double voltage;
     public BikeBrake bikeBrake = new BikeBrake();
-    private static final double elevatorPercent = 1;
+    private static final double elevatorPercent = .5;
     private static final double MAX_BREAK_HEIGHT = 20;
     private static final int ENCODER_EDGES_PER_INCH_OF_TRAVEL = 1350;
     private static final int BIKE_BRAKE_RELEASE_DELAY = 60;
@@ -32,6 +33,17 @@ public class ElevatorSubsystem extends Subsystem {
 
     public ElevatorSubsystem(Joystick controller) {
         this.controller = controller;
+        TalonUtil.resetTalon(elevatorMaster, TalonUtil.ConfigurationType.SENSOR);
+        TalonUtil.resetVictor(elevatorSlave, TalonUtil.ConfigurationType.SLAVE);
+        elevatorMaster.configPeakOutputForward(elevatorPercent);
+        elevatorMaster.configPeakOutputReverse(-elevatorPercent);
+        elevatorSlave.configPeakOutputForward(elevatorPercent);
+        elevatorSlave.configPeakOutputReverse(-elevatorPercent);
+    }
+
+    public double getVoltage(){
+        voltage = elevatorMaster.getMotorOutputVoltage();
+        return voltage;
     }
 
     public void setOutput(double output) {
@@ -43,7 +55,6 @@ public class ElevatorSubsystem extends Subsystem {
     }
 
     private void setMotor(){
-        System.out.println(currentPosition);
         if(currentPosition() < MAX_BREAK_HEIGHT && bikeBrake.isBikeBrakeDisengaged() && heightReached == false){
             setOutput(elevatorPercent);
         }
@@ -93,9 +104,9 @@ public class ElevatorSubsystem extends Subsystem {
         updateVelocity();
         bikeBrake.periodic();
         if(elevatorActive) {
+            System.out.println(elevatorMaster.getMotorOutputPercent() + "\t" + elevatorSlave.getMotorOutputPercent());
             setMotor();
             applyBrake();
-            System.out.println("Output is " + elevatorMaster.getMotorOutputPercent());
 
         }
         if(bikeBrakeEngaged){

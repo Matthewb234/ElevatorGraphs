@@ -20,6 +20,7 @@ public class Robot extends TimedRobot {
 
     private double currentTime;
     private double startTime;
+    private boolean setStartTime = false;
 
     private JoystickButton a = new JoystickButton(controller, 1);
     private JoystickButton x = new JoystickButton(controller,3);
@@ -30,11 +31,10 @@ public class Robot extends TimedRobot {
     private ElevatorCommand elevatorCommand = new ElevatorCommand();
     private BikeBrakeDisengagedCommand bikeBrakeDisengagedCommand = new BikeBrakeDisengagedCommand();
     private BikeBrakeEngagedCommand bikeBrakeEngagedCommand = new BikeBrakeEngagedCommand();
-    private GraphCSV graphCSV = new GraphCSV(fileName,"Velocity","Position","time");
+    private GraphCSV graphCSV = new GraphCSV(fileName,"Velocity","Position","time","voltage");
 
     @Override
     public void robotInit() {
-        startTime = System.currentTimeMillis()/1000d;
         elevatorSubsystem.init();
         a.toggleWhenPressed(elevatorCommand);
     }
@@ -65,8 +65,12 @@ public class Robot extends TimedRobot {
 
     @Override
     public void teleopPeriodic() {
+        if (RobotState.isEnabled()&&setStartTime==false){
+            startTime = System.currentTimeMillis()/1000d;
+            setStartTime = true;
+        }
         currentTime = System.currentTimeMillis()/1000d;
-        graphCSV.updateMainFile(elevatorSubsystem.getVelocity(),elevatorSubsystem.currentPosition(),currentTime - startTime);
+        graphCSV.updateMainFile(elevatorSubsystem.getVelocity(),elevatorSubsystem.currentPosition(),currentTime - startTime,elevatorSubsystem.getVoltage());
     }
 
 
